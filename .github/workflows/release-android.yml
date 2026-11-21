@@ -1,0 +1,124 @@
+# Build a signed release APK and publish a GitHub Release.
+#
+# Version / tag come from pubspec.yaml:  version: 0.2.0+2
+# Bump that line before merging to main when you want a new OTA build.
+#
+# Required repo secrets:
+#   ANDROID_KEYSTORE_BASE64   base64 -w0 of the .jks
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_PASSWORD
+#   ANDROID_KEY_ALIAS           e.g. vintagestream
+
+name: Release Android
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec
+        id: ver
+        run: |
+          set -euo pipefail
+          LINE="$(grep -E '^version:' pubspec.yaml | head -n1 | awk '{print $2}')"
+          if [[ -z "$LINE" || "$LINE" != *+* ]]; then
+            echo "pubspec.yaml version must look like 0.2.0+2 (got: ${LINE:-empty})" >&2
+            exit 1
+          fi
+          NAME="${LINE%%+*}"
+          CODE="${LINE##*+}"
+          echo "version=$LINE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Publishing $LINE (name=$NAME code=$CODE)"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Decode upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing GitHub secret: $name" >&2
+              exit 1
+            fi
+          done
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          printf '%s\n' \
+            "storePassword=${ANDROID_KEYSTORE_PASSWORD}" \
+            "keyPassword=${ANDROID_KEY_PASSWORD}" \
+            "keyAlias=${ANDROID_KEY_ALIAS}" \
+            "storeFile=upload-keystore.jks" \
+            > android/key.properties
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build release APK
+        run: flutter build apk --release --target-platform=android-arm64
+
+      - name: Stage artifacts
+        id: apk
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp -f build/app/outputs/flutter-apk/app-release.apk dist/VintageStream.apk
+          SHA256="$(sha256sum dist/VintageStream.apk | awk '{print $1}')"
+          printf '%s\n' \
+            '{' \
+            "  \"versionName\": \"${{ steps.ver.outputs.version_name }}\"," \
+            "  \"versionCode\": ${{ steps.ver.outputs.version_code }}," \
+            "  \"sha256\": \"${SHA256}\"," \
+            "  \"notes\": \"VintageStream ${{ steps.ver.outputs.version }}\"," \
+            '  "mandatory": false' \
+            '}' \
+            > dist/latest.json
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "APK sha256 $SHA256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            dist/VintageStream.apk
+            dist/latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

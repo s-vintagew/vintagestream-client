@@ -1,0 +1,25 @@
+name: vs_player
+description: In-app libmpv player for VintageStream direct play.
+version: 0.2.0
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  media_kit: ^1.2.0
+  media_kit_video: ^1.3.0
+  screen_brightness: ^2.1.0
+  volume_controller: ^3.3.0
+  vs_core:
+    path: ../vs_core
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,40 @@
+name: vintagestream_client
+description: VintageStream client — direct play via libmpv.
+publish_to: none
+version: 0.2.0+2
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  media_kit: ^1.2.0
+  media_kit_libs_android_video: ^1.3.6
+  ota_update: ^7.1.0
+  package_info_plus: ^9.0.0
+  vs_catalog:
+    path: packages/vs_catalog
+  vs_core:
+    path: packages/vs_core
+  vs_player:
+    path: packages/vs_player
+  vs_ui:
+    path: packages/vs_ui
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon/app_icon.png
+  adaptive_icon_background: "#0B0B0D"
+  adaptive_icon_foreground: assets/icon/app_icon.png
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
