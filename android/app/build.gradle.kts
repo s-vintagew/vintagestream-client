@@ -65,7 +65,7 @@ kotlin {
 }
 
 flutter {
-    source = ".."
+    source = "../.."
 }
 
 dependencies {
